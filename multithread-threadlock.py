@@ -1,6 +1,7 @@
 import threading
 import time
 
+count = 0
 
 class myThread(threading.Thread):
     def __init__(self, threadID, name, counter):
@@ -14,18 +15,25 @@ class myThread(threading.Thread):
         # require lock return True if get it
         # param timeout is optional if ignore it will block until the thread get the lock
         # if set timeout if will return False if timeout
+        global count
         threadLock.acquire()
+        print(count)
         temp = print_time(self.name, self.counter, 3)
+        count += temp
         print('Exiting' + self.name)
+        print(count)
         # release the lock
         threadLock.release()
 
 
 def print_time(threadName, delay, counter):
+    count = 0
     while counter:
         time.sleep(delay)
         print "%s: %s" % (threadName, time.ctime(time.time()))
         counter -= 1
+        count += delay
+    return count
 
 
 threadLock = threading.Lock()
