@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import sparse
 from itertools import islice
-import threading
+from multiprocessing import Process, Queue
 import time
 
 
@@ -21,46 +21,41 @@ def predition(theta, x):
     predit[predit < .5] = 0
     return predit
 
-sum = 0                         # global to record part sum of gradient
-lock = threading.Lock()         # thread lock
 
-
-def multithreadSum(theta, x, y, lda):
+def multiprocessSum(theta, x, y, lda, sum):
     # print ('thread start m = ' + str(x.shape[0]))
-    global sum
     temp = theta
     temp[0] = 0
     temp_sum = x.T * (sigmod(x * theta) - y) + lda * temp
-    lock.acquire()
-    try:
-        sum += temp_sum
-    finally:
-        lock.release()
+    s = sum.get()
+    s += temp_sum
+    sum.put(s)
 
 
 def gradient(theta, x, y, m, lda):
     temp = theta
     temp[0] = 0         # the 1st para do not regularize
-    max_thread = 1
-    mini_banch = int(m / max_thread)
-    threads = []
-    global sum
-    sum = 0
-    for i in range(max_thread):                 # create #max_thread threads
+    max_process = 4
+    mini_banch = int(m / max_process)
+    processes = []
+    sum = Queue()
+    sum.put(0)
+    for i in range(max_process):                 # create #max_thread threads
         lo = i * mini_banch
-        if i < max_thread - 1:
+        if i < max_process - 1:
             hi = (i + 1) * mini_banch
         else:
             hi = m
         x_banch = x[lo:hi]
         y_banch = y[lo:hi]
-        thread = threading.Thread(target=multithreadSum, args=(theta, x_banch, y_banch, lda,))
-        thread.start()
-        threads.append(thread)
+        process = Process(target=multiprocessSum, args=(theta, x_banch, y_banch, lda, sum, ))
+        process.start()
+        processes.append(process)
 
-    for thread in threads:                      # join all threads
-        thread.join()
-    dJ = sum / m
+    for process in processes:                      # join all threads
+        process.join()
+    s = sum.get()
+    dJ = s / m
     return dJ
 
 
